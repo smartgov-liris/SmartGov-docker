@@ -1,0 +1,76 @@
+FROM ubuntu:18.04
+
+# update packages list
+ARG DEBIAN_FRONTEND=noninteractive
+RUN apt update && apt update -y
+
+RUN apt install -y git
+RUN apt install -y wget
+RUN apt install -y openjdk-8-jdk
+RUN java -version
+
+### Create and configure an ad-hoc user1 user 
+# Create 'user1' user with passwd 'govsmart'
+RUN adduser --disabled-password --gecos "" user1 \
+    && adduser user1 sudo \
+    && echo 'user1:govsmart' | chpasswd
+
+# Set user1 home directory
+ENV HOME /home/user1
+WORKDIR $HOME
+
+# Setup user1 default session environment
+USER user1
+RUN cd $HOME && cp /etc/skel/.[bp]* .
+
+# Install and build SmartGovLezModel
+RUN git clone https://github.com/smartgov-liris/SmartGovLezModel
+RUN cd ~/SmartGovLezModel \
+    && ./gradlew build
+ENV LEZMODEL java -Xmx6g -jar $HOME/SmartGovLezModel/SmartGovLez-MASTER.jar
+
+# Install the Osmosis tool (to filter data from an Open Street Map file) 
+RUN git clone git://github.com/openstreetmap/osmosis.git 
+RUN cd osmosis \
+    && ./gradlew assemble
+ENV OSMOSIS $HOME/osmosis/package/bin/osmosis
+
+# Collect some public OSM data of the City of Lyon and pre-treat it with osmosis
+WORKDIR $HOME/SmartGovLezModel
+RUN wget http://download.geofabrik.de/europe/france/rhone-alpes-latest.osm.bz2
+RUN bunzip2 rhone-alpes-latest.osm.bz2
+RUN $OSMOSIS --read-xml                  \
+             enableDateParsing=no        \
+             file=rhone-alpes-latest.osm \
+             --bounding-box top=46.146 left=4.4 bottom=45.43 right=5.46 \
+             --tf accept-ways highway=*  \
+             --used-node                 \
+             --write-xml lyon.osm
+# Instead of bunziping and then removing the unzipped file, we could use 
+# using bzcat with `osmosis -file=-` but this sometimes (memory footprint?)
+# oddly fails when running in a container 
+RUN rm -f rhone-alpes-latest.osm  
+
+# Starting with the above OSM file, generate roads (nodes and ways) 
+# that are later required by the simulation
+RUN $LEZMODEL roads \
+    -f ./lyon.osm                          \
+    -n ./input/osm/simturb_nodes.json      \
+    -w ./input/osm/simturb_ways.json
+
+## The following will end up in the CMD
+#WORKDIR $HOME/SmartGovLezModel/input
+# Initialization of data (simulation pre-treatment)
+#RUN $LEZMODEL init \
+#    -c ./static_config_lez.properties
+
+# Run the simulation per se
+# RUN $LEZMODEL run \
+#   -c ./static_config_lez.properties -t 100
+# REFEFENCE
+# https://gitlab.liris.cnrs.fr/edp/smartgov/blob/master/reports/Minutes/2020_03_31.md
+
+WORKDIR $HOME/
+COPY entrypoint.sh ./entrypoint.sh
+ENTRYPOINT [ "./entrypoint.sh" ] 
+
