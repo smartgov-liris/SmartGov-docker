@@ -23,14 +23,10 @@ WORKDIR $HOME
 USER user1
 RUN cd $HOME && cp /etc/skel/.[bp]* .
 
-# Install and build SmartGovLezModel
-RUN git clone https://github.com/smartgov-liris/SmartGovLezModel
-RUN cd ~/SmartGovLezModel \
+# Install and build SmartGovLezModelUFD
+RUN git clone https://github.com/smartgov-liris/SmartGovLezModelUFD
+RUN cd ~/SmartGovLezModelUFD \
     && ./gradlew build
-# Documentation recommends the usage of `-Xmx<size>` in order to avoid
-# JVM crashes due to lack of memory, producing memory errors e.g.
-#   "java.lang.OutOfMemoryError: GC overhead limit exceeded" 
-ENV LEZMODEL java -Xmx6g -jar $HOME/SmartGovLezModel/SmartGovLez-MASTER.jar
 
 # Install the Osmosis tool (to filter data from an Open Street Map file) 
 RUN git clone git://github.com/openstreetmap/osmosis.git 
@@ -39,7 +35,7 @@ RUN cd osmosis \
 ENV OSMOSIS $HOME/osmosis/package/bin/osmosis
 
 # Collect some public OSM data of the City of Lyon and pre-treat it with osmosis
-WORKDIR $HOME/SmartGovLezModel
+WORKDIR $HOME/SmartGovLezModelUFD
 RUN wget http://download.geofabrik.de/europe/france/rhone-alpes-latest.osm.bz2
 # Instead of bunziping and then having to remove the unzipped file after usage,
 # we could use something like
@@ -55,6 +51,14 @@ RUN $OSMOSIS --read-xml                  \
              --write-xml lyon.osm
 RUN rm -f rhone-alpes-latest.osm  
 
+# Documentation recommends the usage of `-Xmx<size>` in order to avoid
+# JVM crashes due to lack of memory, producing memory errors e.g.
+#   "java.lang.OutOfMemoryError: GC overhead limit exceeded" 
+ENV LEZMODEL java -Xmx6g -jar $HOME/SmartGovLezModelUFD/SmartGovLez-MASTER.jar
+
+# All the simulations will be based on the same road network. The data
+# can thus be prepared once and for all simulations and thus this roads
+# extraction can be done in the containter.
 # Starting with the above OSM file, generate roads (nodes and ways) 
 # that are later required by the simulation
 RUN $LEZMODEL roads \
@@ -62,27 +66,6 @@ RUN $LEZMODEL roads \
     -n ./input/osm/simturb_nodes.json      \
     -w ./input/osm/simturb_ways.json
 
-## The following will end up in the CMD
-#WORKDIR $HOME/SmartGovLezModel/input
-# Initialization of data (simulation pre-treatment)
-#RUN $LEZMODEL init \
-#    -c ./static_config_lez.properties
-
-# Run the simulation per se
-# RUN $LEZMODEL run \
-#   -c ./static_config_lez.properties -t 100
-
-# Eventually exploit the simulation results to compute the pollution tiles
-# RUN $LEZMODEL tile \
-#   -a ../output/lez/simulation/arcs_10000.json \
-#   -n ../output/lez/init/nodes.json            \
-#   --tile-size 2000                            \
-#   -o ../output/lez/tiles_10000.json
-
-# REFEFENCE
-# https://gitlab.liris.cnrs.fr/edp/smartgov/blob/master/reports/Minutes/2020_03_31.md
-
 WORKDIR $HOME/
 COPY entrypoint.sh ./entrypoint.sh
 ENTRYPOINT [ "./entrypoint.sh" ] 
-
