@@ -32,7 +32,7 @@ Collecting the outputs in a local (to the invocation host) directory
 
 ```bash
 mkdir output
-docker run --mount type=bind,src="$PWD/output",dst="/Output"        \
+docker run --mount type=bind,src="$PWD/output",dst="/Output"     \
        -t smartgov:lez-model-ufd ./static_config_lez.properties 100
 ```
 
@@ -50,3 +50,11 @@ Working inside the container
 docker run --mount type=bind,src="$PWD/output",dst="/Output" \
            --entrypoint /bin/bash -it smartgov:lez-model-ufd
 ```
+
+## Concerning memory footprint
+
+If the simulation exits with a "Killed" error message this probably means that the JVM encountered an "Out of Memory" (OOM) situation. As a model developer you should could
+
+- first understand the implications of running Java inside docker by reading e.g. [java inside docker](https://developers.redhat.com/blog/2017/03/14/java-inside-docker/),
+- assert this was indeed a OOM situation with a post-mortem inspection by running `docker inspect <container-id> -f '{{json .State.OOMKilled}}'`
+- used a `docker stats <container-id>` on next run to keep track of the memory usage (MEM USAGE column) at run time.
