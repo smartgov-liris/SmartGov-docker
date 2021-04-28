@@ -4,6 +4,8 @@ Build the docker image with the command
 
 ## Running documentation
 `docker run --rm -t smartgov:lez-model --help`
+
+that boils down to
 `docker run --rm -t smartgov:lez-model <arguments>` 
 
 ## Running examples
