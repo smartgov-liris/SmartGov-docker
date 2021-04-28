@@ -1,0 +1,29 @@
+FROM node:latest as build-stage
+
+# update packages list
+ARG DEBIAN_FRONTEND=noninteractive
+RUN apt update && apt update -y
+
+RUN node --version
+RUN npm --version
+RUN apt-get install -y git
+RUN git --version
+
+######### Install the client code and build it
+RUN git clone https://github.com/smartgov-liris/lez-viewer.git
+WORKDIR lez-viewer
+RUN npm install
+# As defined in the `vue.config.js` configuration file:
+#  - we need NODE_ENV to be properly set in order to avoid the prepending
+#    of a `/lez-viewer/` unwanted directory level
+#  - the output is in the docs sub-directory
+RUN rm -fr docs     # Yep, some odd/undue commits were made !
+ENV NODE_ENV development
+RUN npm run build
+
+######### Serve it through the  nginx http server
+# Refer to https://hub.docker.com/_/nginx/
+FROM nginx as production-stage
+
+COPY --from=build-stage /lez-viewer/docs/ /usr/share/nginx/html
+EXPOSE 80

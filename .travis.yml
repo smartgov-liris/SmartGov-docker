@@ -6,10 +6,15 @@ services:
 
 jobs:
   include:
-    - stage: SmartvovLezModelUFD build the run
+    - stage: SmartvovLezModelUFD build and run
       script:
       - |
         cd SmartGovLezModelUFD
         docker build --no-cache -t smartgov:lez-model-ufd Context
         echo "################################################### start of run"
         docker run --mount type=bind,src="$PWD/output",dst="/Output" -t smartgov:lez-model-ufd ./static_config_lez.properties 100
+    - stage: LezViewer build (no run)
+      script:
+      - |
+        cd LezViewer
+        docker build --no-cache -t smartgov:lez-viewer Context
