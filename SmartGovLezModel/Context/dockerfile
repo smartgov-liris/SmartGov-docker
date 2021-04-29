@@ -4,10 +4,10 @@ FROM ubuntu:18.04
 ARG DEBIAN_FRONTEND=noninteractive
 RUN apt update && apt update -y
 
-RUN apt install -y git
-RUN apt install -y wget
+RUN apt install -y git wget sudo tree
 RUN apt install -y openjdk-8-jdk
 RUN java -version
+RUN apt install -y python3 python3-pip
 
 ### Create and configure an ad-hoc user1 user 
 # Create 'user1' user with passwd 'govsmart'
@@ -27,10 +27,6 @@ RUN cd $HOME && cp /etc/skel/.[bp]* .
 RUN git clone https://github.com/smartgov-liris/SmartGovLezModel
 RUN cd ~/SmartGovLezModel \
     && ./gradlew build
-# Documentation recommends the usage of `-Xmx<size>` in order to avoid
-# JVM crashes due to lack of memory, producing memory errors e.g.
-#   "java.lang.OutOfMemoryError: GC overhead limit exceeded" 
-ENV LEZMODEL java -Xmx6g -jar $HOME/SmartGovLezModel/SmartGovLez-MASTER.jar
 
 # Install the Osmosis tool (to filter data from an Open Street Map file) 
 RUN git clone git://github.com/openstreetmap/osmosis.git 
@@ -55,6 +51,14 @@ RUN $OSMOSIS --read-xml                  \
              --write-xml lyon.osm
 RUN rm -f rhone-alpes-latest.osm  
 
+# Documentation recommends the usage of `-Xmx<size>` in order to avoid
+# JVM crashes due to lack of memory, producing memory errors e.g.
+#   "java.lang.OutOfMemoryError: GC overhead limit exceeded" 
+ENV LEZMODEL java -Xmx6g -jar $HOME/SmartGovLezModel/SmartGovLez-MASTER.jar
+
+# All the simulations will be based on the same road network. The data
+# can thus be prepared once and for all simulations and thus this roads
+# extraction can be done in the containter.
 # Starting with the above OSM file, generate roads (nodes and ways) 
 # that are later required by the simulation
 RUN $LEZMODEL roads \
@@ -62,27 +66,11 @@ RUN $LEZMODEL roads \
     -n ./input/osm/simturb_nodes.json      \
     -w ./input/osm/simturb_ways.json
 
-## The following will end up in the CMD
-#WORKDIR $HOME/SmartGovLezModel/input
-# Initialization of data (simulation pre-treatment)
-#RUN $LEZMODEL init \
-#    -c ./static_config_lez.properties
+# Install Keras and Tensorflow
+RUN pip3 install --upgrade pip \
+    && python3 -m pip install -r $HOME/SmartGovLezModel/extsrc/requirements.txt
 
-# Run the simulation per se
-# RUN $LEZMODEL run \
-#   -c ./static_config_lez.properties -t 100
-
-# Eventually exploit the simulation results to compute the pollution tiles
-# RUN $LEZMODEL tile \
-#   -a ../output/lez/simulation/arcs_10000.json \
-#   -n ../output/lez/init/nodes.json            \
-#   --tile-size 2000                            \
-#   -o ../output/lez/tiles_10000.json
-
-# REFEFENCE
-# https://gitlab.liris.cnrs.fr/edp/smartgov/blob/master/reports/Minutes/2020_03_31.md
-
+# Setup entry point
 WORKDIR $HOME/
 COPY entrypoint.sh ./entrypoint.sh
 ENTRYPOINT [ "./entrypoint.sh" ] 
-
