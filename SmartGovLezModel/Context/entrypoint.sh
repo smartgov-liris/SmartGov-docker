@@ -16,9 +16,11 @@ NUMBER_OF_REQUIRED_GIGABYTES=6
 
 # display script usage
 function print_usage() {
-  echo -n 'Usage: docker run --mount type=bind,src="$PWD/output",dst="/Output" '
-  echo "properties_filename number_of_steps"
-  echo "where number_of_steps is an integer."  
+  echo 'Usage: docker run --mount type=bind,src="$PWD/output",dst="/Output" \'
+  echo "       <properties_filename> <number_of_ticks_of_simulations>"
+  echo "       where <number_of_ticks_of_simulations> is an integer."
+  echo 'Example: docker run --mount type=bind,src="$PWD/output",dst="/Output" \'
+  echo "         static_config_lez.properties  86400"
 }
 
 # If user requested usage info
@@ -70,56 +72,60 @@ fi
 LEZMODEL="java -Xmx"$NUMBER_OF_REQUIRED_GIGABYTES"g "
 LEZMODEL+="-jar $HOME/SmartGovLezModel/SmartGovLez-MASTER.jar"
 
-#### Initialize the properties_file
-CMD_INITIALIZE=$LEZMODEL" init -c "$properties_file
-
-echo "Initializing file" $properties_file
-echo "  Initialization command" $CMD_INITIALIZE
-$CMD_INITIALIZE
-echo "Initialization done"
-echo ""
-
-#### Running the simulation
-CMD_RUN=$LEZMODEL" run -c "$properties_file
-if [ $# -ge 2 ]
-then
-  # When number of steps argument was provided
-  CMD_RUN+=" -t "$2
-fi
-
-echo "Launching simulation"
-echo "   simulation command:" $CMD_RUN
-$CMD_RUN
-echo "Simulation done"
-echo ""
-
-# Assert the simulation did write an output file for the arcs
-arcs_output_file="./output/lez/simulation/arcs_$2.json"
-
-if [ ! -f "$arcs_output_file" ]
-then
-  echo "Output arcs file" $arcs_output_file "does not exist. Exiting."
-  exit 1
-fi
-
-#### Exploit the simulation results to compute the pollution tiles
-tiles_output_file="./output/lez/tiles_$2.json"
-CMD_TILE_COMPUTE=$LEZMODEL" tile -a "$arcs_output_file" "
-CMD_TILE_COMPUTE+="-n ./output/lez/init/nodes.json "
-CMD_TILE_COMPUTE+="--tile-size 4000 "
-CMD_TILE_COMPUTE+="-o "$tiles_output_file
-
-echo "Computing resulting tiles"
-echo "   tile computation command:" $CMD_TILE_COMPUTE
-$CMD_TILE_COMPUTE
-echo "Tiles computation done."
-
-if [ ! -f "$tiles_output_file" ]
-then
-  echo "Tiles output file" $tiles_output_file "does not exist. Exiting."
-  exit 1
-fi
-echo ""
+#### The init / run / tile steps are useless (and maybe irrelevant) with
+#### SmartGovLezModel, whose main target is the 'prun' step. The lines are
+#### nevertheless kept, in case they would be later usefull again.
+#
+##### Initialize the properties_file
+#CMD_INITIALIZE=$LEZMODEL" init -c "$properties_file
+#
+#echo "Initializing file" $properties_file
+#echo "  Initialization command" $CMD_INITIALIZE
+#$CMD_INITIALIZE
+#echo "Initialization done"
+#echo ""
+#
+##### Running the simulation
+#CMD_RUN=$LEZMODEL" run -c "$properties_file
+#if [ $# -ge 2 ]
+#then
+#  # When number of steps argument was provided
+#  CMD_RUN+=" -t "$2
+#fi
+#
+#echo "Launching simulation"
+#echo "   simulation command:" $CMD_RUN
+#$CMD_RUN
+#echo "Simulation done"
+#echo ""
+#
+## Assert the simulation did write an output file for the arcs
+#arcs_output_file="./output/lez/simulation/arcs_$2.json"
+#
+#if [ ! -f "$arcs_output_file" ]
+#then
+#  echo "Output arcs file" $arcs_output_file "does not exist. Exiting."
+#  exit 1
+#fi
+#
+##### Exploit the simulation results to compute the pollution tiles
+#tiles_output_file="./output/lez/tiles_$2.json"
+#CMD_TILE_COMPUTE=$LEZMODEL" tile -a "$arcs_output_file" "
+#CMD_TILE_COMPUTE+="-n ./output/lez/init/nodes.json "
+#CMD_TILE_COMPUTE+="--tile-size 4000 "
+#CMD_TILE_COMPUTE+="-o "$tiles_output_file
+#
+#echo "Computing resulting tiles"
+#echo "   tile computation command:" $CMD_TILE_COMPUTE
+#$CMD_TILE_COMPUTE
+#echo "Tiles computation done."
+#
+#if [ ! -f "$tiles_output_file" ]
+#then
+#  echo "Tiles output file" $tiles_output_file "does not exist. Exiting."
+#  exit 1
+#fi
+#echo ""
 
 #### 'Politic Run' step
 CMD_PRUN="$LEZMODEL prun -c $properties_file -i 5"
@@ -138,14 +144,12 @@ echo ""
 #### Exporting (to container running context) results
 echo "Exporting output directory from container."
 echo ""
-cp -r $HOME/SmartGovLezModel/output /Output/
-cp -r $HOME/SmartGovLezModel/output_political /Output/
+cp -r $HOME/SmartGovLezModel/output* /Output/
 
 #### Display the resulting files
 echo "Resulting files:"
 tree -h /Output
 echo ""
-
 
 echo "Exiting on success."
 echo ""
